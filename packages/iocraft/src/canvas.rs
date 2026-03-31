@@ -115,6 +115,49 @@ impl Canvas {
         self.cells.len()
     }
 
+    /// Returns the text character at the given cell position, or `None` if
+    /// the cell is empty.
+    pub fn get_text(&self, x: usize, y: usize) -> Option<&str> {
+        self.cells
+            .get(y)
+            .and_then(|row| row.get(x))
+            .and_then(|cell| cell.character.as_ref())
+            .map(|ch| ch.value.as_str())
+    }
+
+    /// Extracts the plain text content of a single row as a `String`.
+    ///
+    /// Trailing whitespace is trimmed. Returns an empty string if the row
+    /// index is out of bounds.
+    pub fn get_row_text(&self, y: usize) -> String {
+        let Some(row) = self.cells.get(y) else {
+            return String::new();
+        };
+        let last_non_empty = row.iter().rposition(|cell| cell.character.is_some());
+        let end = match last_non_empty {
+            Some(i) => i + 1,
+            None => return String::new(),
+        };
+        let mut s = String::with_capacity(end);
+        for cell in &row[..end] {
+            match cell.character.as_ref() {
+                Some(ch) => s.push_str(&ch.value),
+                None => s.push(' '),
+            }
+        }
+        s
+    }
+
+    /// Extracts plain text content for a range of rows.
+    ///
+    /// Returns one `String` per row. Rows outside the canvas bounds produce
+    /// empty strings.
+    pub fn get_text_range(&self, start_row: usize, end_row: usize) -> Vec<String> {
+        (start_row..=end_row)
+            .map(|y| self.get_row_text(y))
+            .collect()
+    }
+
     fn clear_text(&mut self, x: usize, y: usize, w: usize, h: usize) {
         for y in y..y + h {
             if let Some(row) = self.cells.get_mut(y) {
@@ -367,6 +410,18 @@ pub struct CanvasSubviewMut<'a> {
 }
 
 impl CanvasSubviewMut<'_> {
+    /// Returns the text character at the given **absolute** canvas position,
+    /// or `None` if the cell is empty.  Coordinates are NOT relative to the
+    /// subview — they refer to the root canvas.
+    pub fn get_text(&self, abs_x: usize, abs_y: usize) -> Option<&str> {
+        self.canvas.get_text(abs_x, abs_y)
+    }
+
+    /// Extracts the plain text of one row of the root canvas.
+    pub fn get_row_text(&self, abs_y: usize) -> String {
+        self.canvas.get_row_text(abs_y)
+    }
+
     /// Fills the region with the given color.
     pub fn set_background_color(&mut self, x: isize, y: isize, w: usize, h: usize, color: Color) {
         let mut left = self.x + x;
